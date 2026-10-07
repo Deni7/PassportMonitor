@@ -203,15 +203,22 @@ async def test_document_http_error_and_pause_preserve_actual_response(code):
     response = SimpleNamespace(
         status=code, url="https://pasport.org.ua/?secret=value", headers={"retry-after": "900"}
     )
-    action = AsyncMock(side_effect=provider._http_error(response, f"Browser HTTP {code}"))
+
+    async def reject():
+        provider._respect_retry_after(response)
+        raise provider._http_error(response, f"Browser HTTP {code}")
+
+    action = AsyncMock(side_effect=reject)
     with pytest.raises(ProviderError) as first:
         await provider._operation(action)
     with pytest.raises(ProviderError) as paused:
         await provider._operation(action)
     assert first.value.diagnostics["http_status"] == code
+    assert first.value.status == (Status.RATE_LIMIT if code == 429 else Status.PROVIDER_ERROR)
     assert first.value.diagnostics["url"] == "https://pasport.org.ua/"
     assert first.value.diagnostics["retry_after_seconds"] == 900
     assert paused.value.diagnostics["request_sent"] is False
+    assert paused.value.status == first.value.status
     assert paused.value.diagnostics["cause"] == first.value.as_dict()
     assert action.await_count == 1
 
@@ -224,3 +231,21 @@ async def test_document_challenge_preserves_response_code():
         await provider._response_challenge(None, response)
     assert error.value.status == Status.CLOUDFLARE
     assert error.value.diagnostics["http_status"] == 403
+
+
+async def test_document_cloudflare_security_block_is_not_rate_limit():
+    provider = DocumentProvider(config(), None)
+    response = SimpleNamespace(
+        status=403,
+        url="https://pasport.org.ua/solutions/e-queue",
+        headers={"server": "cloudflare", "content-type": "text/plain"},
+    )
+    action = AsyncMock(side_effect=provider._http_error(response, "Browser HTTP 403"))
+    with pytest.raises(ProviderError) as first:
+        await provider._operation(action)
+    with pytest.raises(ProviderError) as paused:
+        await provider._operation(action)
+    assert first.value.status == Status.CLOUDFLARE
+    assert paused.value.status == Status.CLOUDFLARE
+    assert paused.value.diagnostics["cause"]["http_status"] == 403
+    assert action.await_count == 1

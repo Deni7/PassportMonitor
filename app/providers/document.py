@@ -226,12 +226,18 @@ class DocumentProvider(QueueProvider):
         )
 
     def _http_error(self, response, detail):
+        status = Status.PROVIDER_ERROR
+        if response.status == 429:
+            status = Status.RATE_LIMIT
+        elif response.status == 403 and "cloudflare" in response.headers.get("server", "").lower():
+            status = Status.CLOUDFLARE
         return ProviderError(
-            Status.RATE_LIMIT,
+            status,
             detail,
             http_status=response.status,
             request_sent=True,
             url=response.url.split("?", 1)[0].split("#", 1)[0],
+            server=response.headers.get("server"),
             retry_after_seconds=retry_after_seconds(
                 response.headers.get("retry-after", "0"), self.settings.circuit_cooldown
             ),
@@ -263,7 +269,7 @@ class DocumentProvider(QueueProvider):
         async with self.lock:
             if clock.monotonic() < self.blocked_until:
                 raise ProviderError(
-                    Status.RATE_LIMIT,
+                    self.last_error.status if self.last_error else Status.PROVIDER_ERROR,
                     "Browser circuit open",
                     request_sent=False,
                     cause=self.last_error.as_dict() if self.last_error else None,

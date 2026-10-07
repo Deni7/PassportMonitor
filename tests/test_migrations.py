@@ -25,3 +25,22 @@ def test_initial_migration_matches_models_and_can_rollback(tmp_path):
     subprocess.run(
         command + ["downgrade", "base"], env=environment, cwd=root, check=True, capture_output=True
     )
+
+
+def test_offline_migration_uses_postgres_password_without_database_url():
+    environment = {
+        **os.environ,
+        "DATABASE_URL": "",
+        "POSTGRES_PASSWORD": "p@ss:/?#%$ with spaces",
+    }
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head", "--sql"],
+        env=environment,
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "CREATE TABLE alembic_version" in result.stdout
+    assert "0002" in result.stdout

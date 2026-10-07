@@ -7,9 +7,15 @@ services:
     shm_size: 256mb
     environment:
       TZ: Europe/Kyiv
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      backend:
+      proxy:
+        aliases:
+          - passport-monitor
     ports:
       - "127.0.0.1:${METRICS_PORT:-8080}:${METRICS_PORT:-8080}"
     healthcheck:
@@ -33,10 +39,18 @@ services:
       TZ: Europe/Kyiv
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U monitor -d monitor"]
       interval: 10s
       timeout: 5s
       retries: 5
+networks:
+  backend:
+    internal: true
+  proxy:
+    external: true
+    name: ${NPM_NETWORK:-npm}
 volumes:
   postgres-data:

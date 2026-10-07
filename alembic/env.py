@@ -1,13 +1,13 @@
 import asyncio
-import os
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
+from app.config import DatabaseSettings
 from app.models import Base
 
-url = os.environ["DATABASE_URL"]
+url = DatabaseSettings().database_url
 
 
 def migrate(connection):

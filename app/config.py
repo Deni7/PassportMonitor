@@ -3,12 +3,32 @@ from typing import Annotated
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy import URL
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    database_url: str = Field(default="", repr=False)
+    postgres_password: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def resolve_database_url(self):
+        if not self.database_url:
+            if self.postgres_password is None or not self.postgres_password.get_secret_value():
+                raise ValueError("Set POSTGRES_PASSWORD or DATABASE_URL")
+            self.database_url = URL.create(
+                "postgresql+asyncpg",
+                username="monitor",
+                password=self.postgres_password.get_secret_value(),
+                host="postgres",
+                port=5432,
+                database="monitor",
+            ).render_as_string(hide_password=False)
+        return self
+
+
+class Settings(DatabaseSettings):
     telegram_bot_token: SecretStr
-    database_url: str = Field(repr=False)
     admin_telegram_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     dmsu_enabled: bool = True
     document_enabled: bool = True

@@ -55,7 +55,9 @@ AVAILABLE_AGAIN`. Повторна поява після cooldown або змі�
 
 ```bash
 cp .env.example .env
-# Заповніть TELEGRAM_BOT_TOKEN, POSTGRES_PASSWORD і DATABASE_URL.
+# Заповніть TELEGRAM_BOT_TOKEN і POSTGRES_PASSWORD.
+# Задайте NPM_NETWORK — назву наявної мережі Nginx Proxy Manager.
+# Якщо мережі ще немає: docker network create npm
 docker compose up -d --build
 docker compose logs -f bot
 ```
@@ -76,8 +78,15 @@ Invoke-RestMethod http://127.0.0.1:18080/health # Для METRICS_PORT=18080.
 provider error показується окремо від відсутності місць.
 Бот і БД мають `restart: unless-stopped`; сама Podman ВМ також має бути запущена.
 
-Паролі в `POSTGRES_PASSWORD` і `DATABASE_URL` мають збігатися; спецсимволи
-пароля в URL потрібно percent-encode. `ADMIN_TELEGRAM_IDS` — числові ID через
+Для стандартного Compose deployment задайте пароль лише в `POSTGRES_PASSWORD`:
+бот і Alembic автоматично сформують URL, включно з кодуванням спецсимволів.
+Значення з `$` у `.env` беріть в одинарні лапки, щоб Compose не підставляв змінні.
+`DATABASE_URL` — необов'язкове перевизначення для іншої БД; якщо воно задане,
+використовується саме цей URL. Після оновлення видаліть старий `DATABASE_URL`
+із `.env`, щоб перейти на спільний пароль. У явному URL пароль потрібно
+percent-encode. Зміна `POSTGRES_PASSWORD` не змінює пароль у вже створеній БД:
+для цього використайте `\password monitor` у psql, не видаляючи volume.
+`ADMIN_TELEGRAM_IDS` — числові ID через
 кому. Кожен адміністратор має спочатку відкрити бота й надіслати `/start`, щоб
 Telegram дозволив надсилати йому повідомлення.
 
@@ -90,6 +99,21 @@ PostgreSQL не публікується на host; persistent volume `postgres-
 стан після restart. `docker compose down` зберігає volume; `down -v` видаляє БД.
 Health/metrics публікуються тільки на `127.0.0.1:8080`. Часова зона установ —
 `Europe/Kyiv`, усі внутрішні timestamps — UTC.
+
+Compose явно підключає бот і PostgreSQL до внутрішньої мережі `backend`.
+Бот також підключений до зовнішньої мережі `proxy`, фактична назва якої
+задається через `NPM_NETWORK` у `.env` (типово `npm`). Вкажіть назву наявної
+мережі Nginx Proxy Manager; її можна переглянути в Portainer або через
+`docker network ls`. Ця мережа має існувати перед запуском Compose.
+Для локального запуску без NPM її можна створити командою
+`docker network create npm` (для Podman — `podman network create npm`).
+
+У NPM задайте Scheme `http`, Forward Hostname `passport-monitor` та
+Forward Port зі значення `METRICS_PORT` (наприклад, `18080`). Відкривайте
+`/dashboard`. Alias `passport-monitor` залишається стабільним після
+пересоздання контейнера; PostgreSQL підключений лише до `backend`.
+Після зміни мереж застосуйте `docker compose up -d`; Compose пересоздасть
+контейнери з потрібними підключеннями, зберігаючи volume БД.
 
 ## Налаштування
 
@@ -135,8 +159,9 @@ python -m alembic upgrade head
 python -m app.main
 ```
 
-Для PowerShell: `$env:DATABASE_URL = '...'`. Alembic читає `DATABASE_URL` із
-оточення; compose передає його через `env_file`. Локальний main читає `.env`.
+Для PowerShell: `$env:DATABASE_URL = '...'`. Бот і Alembic читають налаштування
+з оточення та `.env`; оточення має пріоритет. Для локальної БД задайте
+`DATABASE_URL`, оскільки автоматичний URL використовує Compose-host `postgres`.
 Docker встановлює точні версії з `requirements.lock` та Chromium відповідної
 версії офіційного Playwright. Контейнер працює як непривілейований користувач.
 

@@ -1,0 +1,34 @@
+{
+  "timeSlots": [
+    {
+      "startTime": "09:00:00",
+      "slot": "09:00 — 14 вільних слотів",
+      "isAllowed": true
+    },
+    {
+      "startTime": "10:00:00",
+      "slot": "10:00 — 14 вільних слотів",
+      "isAllowed": true
+    },
+    {
+      "startTime": "11:00:00",
+      "slot": "11:00 — 14 вільних слотів",
+      "isAllowed": true
+    },
+    {
+      "startTime": "12:00:00",
+      "slot": "12:00 — 14 вільних слотів",
+      "isAllowed": true
+    },
+    {
+      "startTime": "13:00:00",
+      "slot": "13:00 — 14 вільних слотів",
+      "isAllowed": true
+    },
+    {
+      "startTime": "15:00:00",
+      "slot": "15:00 — 14 вільних слотів",
+      "isAllowed": true
+    }
+  ]
+}

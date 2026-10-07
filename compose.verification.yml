@@ -1,0 +1,30 @@
+# Isolated acceptance database. Does not read .env or contact Telegram.
+services:
+  postgres:
+    image: docker.io/library/postgres:16-bookworm
+    environment:
+      POSTGRES_DB: acceptance
+      POSTGRES_USER: acceptance
+      POSTGRES_PASSWORD: isolated-acceptance-only
+    volumes:
+      - acceptance-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acceptance -d acceptance"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+  verification:
+    init: true
+    build:
+      context: .
+      target: verification
+    environment:
+      DATABASE_URL: postgresql+asyncpg://acceptance:isolated-acceptance-only@postgres:5432/acceptance
+      TEST_DATABASE_URL: postgresql+asyncpg://acceptance:isolated-acceptance-only@postgres:5432/acceptance
+    depends_on:
+      postgres:
+        condition: service_healthy
+    shm_size: 256mb
+    command: ["sh", "-c", "python -m alembic upgrade head && xvfb-run -a python -m pytest -q -p no:cacheprovider"]
+volumes:
+  acceptance-data:

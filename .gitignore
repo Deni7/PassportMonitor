@@ -1,0 +1,27 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Python environments, bytecode, and packaging output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+
+# Tool caches and test coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+/htmlcov/
+/coverage.xml
+
+# Local browser, discovery, and verification artifacts
+.browser-cache/
+docs/discovery/
+data/
+.dashboard-qa/

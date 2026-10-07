@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "queue-monitor"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "aiogram>=3.13,<4", "httpx>=0.27,<1", "sqlalchemy[asyncio]>=2.0,<3",
+  "asyncpg>=0.29,<1", "alembic>=1.13,<2", "pydantic-settings>=2.15,<3",
+  "prometheus-client>=0.21,<1", "aiohttp>=3.10,<4", "playwright>=1.48,<2",
+  "beautifulsoup4>=4.12,<5", "tzdata>=2024.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<2", "aiosqlite>=0.20", "ruff>=0.7,<1"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["static/*.html", "static/*.css", "static/*.js"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-m 'not integration'"
+markers = ["integration: read-only production contract checks (explicit opt-in)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]

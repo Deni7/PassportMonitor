@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Passport Monitor · Аналітика бота</title>
+  <link rel="stylesheet" href="/dashboard/assets/dashboard.css">
+  <script src="/dashboard/assets/dashboard.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/dashboard"><span class="logo">P</span><span>Passport Monitor<small>Аналітика Telegram-бота</small></span></a>
+    <span class="nav-caption">РОБОЧИЙ ПРОСТІР</span>
+    <nav aria-label="Розділи аналітики">
+      <button data-view="overview" class="selected"><span>◫</span>Огляд</button>
+      <button data-view="users"><span>♙</span>Користувачі</button>
+      <button data-view="subscriptions"><span>◎</span>Моніторинги</button>
+      <button data-view="runs"><span>↻</span>Історія перевірок</button>
+      <button data-view="requests"><span>⇄</span>Запити до установ</button>
+      <button data-view="jobs"><span>◷</span>Планувальник</button>
+      <span class="nav-caption">ПОВЕДІНКА ТА ДОСТАВКА</span>
+      <button data-view="commands"><span>⌘</span>Команди й кнопки</button>
+      <button data-view="outgoing"><span>↗</span>Повідомлення бота</button>
+      <button data-view="notifications"><span>◇</span>Черга сповіщень</button>
+      <button data-view="timeline"><span>≡</span>Хронологія</button>
+    </nav>
+    <div class="sidebar-footer"><span class="live-dot"></span> Пряме підключення до БД<small>Доступ адміністратора · лише перегляд</small></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>Аналітика / <b id="breadcrumb">Огляд</b></span><span class="timezone">Europe/Kyiv <span class="avatar">A</span></span></header>
+    <div class="workspace">
+      <div class="heading"><div><span class="eyebrow">PASSPORT MONITOR / INSIGHTS</span><h1 id="title">Огляд роботи бота</h1><p id="subtitle">Від першої команди до знайденого місця — усі події в одному просторі.</p></div><div class="heading-actions"><label class="live-toggle"><input id="auto-refresh" type="checkbox" checked> Автооновлення · 15 с</label><button id="refresh" class="button">↻ Оновити</button></div></div>
+      <form id="filters" class="filters">
+        <label>Від<input type="date" id="from" required></label>
+        <label>До<input type="date" id="to" required></label>
+        <label>Установа<select id="provider"><option value="">Усі установи</option><option value="dmsu">ДМСУ</option><option value="document">ДП «Документ»</option></select></label>
+        <label>Користувач<input id="user-id" inputmode="numeric" placeholder="Telegram ID" pattern="[0-9]+"></label>
+        <label>Моніторинг<input id="subscription-id" inputmode="numeric" placeholder="ID підписки" pattern="[0-9]+"></label>
+        <button class="button primary" type="submit">Застосувати</button><button class="button subtle" id="reset" type="button">Скинути</button>
+      </form>
+      <div id="profile" class="profile" hidden></div>
+      <div id="error" class="error" role="alert" hidden></div>
+      <div class="statusline"><span id="scope">Останні 7 днів</span><span id="updated" role="status">Завантаження даних…</span></div>
+      <section id="overview">
+        <div id="metrics" class="metrics"></div>
+        <div class="chart-grid"><article class="panel wide"><div class="panel-heading"><div><h2>Активність у часі</h2><p>Вхідні дії та вихідні повідомлення за обраний період</p></div><div class="legend"><span class="green">● Дії</span><span class="blue">● Повідомлення</span></div></div><div id="activity-chart" class="chart"></div></article><article class="panel"><h2>Шлях користувачів</h2><p>Унікальні користувачі на кожному етапі за період</p><div id="funnel"></div><p class="footnote">Етапи рахуються незалежно: підписку могли створити раніше обраного періоду.</p></article></div>
+        <div class="chart-grid"><article class="panel wide"><h2>Стан установ</h2><p>Поточний стан і результати перевірок за період</p><div id="providers" class="provider-grid"></div></article><article class="panel"><h2>Найчастіші команди та кнопки</h2><div id="top-commands"></div></article></div>
+        <div class="chart-grid equal"><article class="panel"><h2>Географія моніторингів</h2><p>Усі підписки у вибраній області фільтрів</p><div id="locations"></div></article><article class="panel"><h2>Популярні послуги</h2><p>Розподіл збережених підписок</p><div id="services"></div></article></div>
+        <div class="chart-grid equal"><article class="panel"><h2>Коли користувачі активні</h2><p>Кількість вхідних дій за годинами · Europe/Kyiv</p><div id="hours" class="hours-grid"></div></article><article class="panel"><h2>Етапи діалогу</h2><p>Дії та унікальні користувачі на етапах налаштування</p><div id="stages"></div></article></div>
+        <article class="panel behavior-panel"><h2>Поведінкові сигнали</h2><p>Зміни за період і поточний стан аудиторії</p><div id="behavior" class="behavior-grid"></div></article>
+        <div class="data-note">Історія команд, повідомлень і запитів накопичується після встановлення оновлення. Поточні користувачі та підписки доступні одразу. Знайдені слоти рахуються за перевірками й можуть повторюватися.</div>
+      </section>
+      <section id="records" class="panel" hidden>
+        <div class="panel-heading"><div><h2 id="table-title"></h2><p id="table-note"></p></div><button id="export" class="button">↓ CSV сторінки</button></div>
+        <div class="table-controls"><label class="search-label">Пошук<input type="search" id="search" placeholder="Пошук у записах…"></label><label>Статус<select id="status"><option value="">Усі статуси</option></select></label><label id="kind-label" hidden>Тип події<select id="kind"><option value="">Усі типи</option><option value="command">Команда</option><option value="callback">Кнопка</option><option value="message">Текст</option><option value="subscription">Моніторинг</option><option value="outgoing">Повідомлення бота</option><option value="poll">Перевірка</option></select></label></div>
+        <div class="table-scroll"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
+        <div class="pagination"><span id="page-info"></span><div><label>На сторінці <select id="page-size"><option>25</option><option>50</option><option>100</option></select></label><button id="previous" class="button">← Назад</button><button id="next" class="button">Далі →</button></div></div>
+      </section>
+      <footer>Passport Monitor <span>Журнал операцій · Час відображається за Києвом</span></footer>
+    </div>
+  </main>
+  <dialog id="detail"><div class="dialog-heading"><h2 id="detail-title">Деталі запису</h2><button id="close-detail" class="button" aria-label="Закрити">✕</button></div><div id="detail-content"></div></dialog>
+</body>
+</html>

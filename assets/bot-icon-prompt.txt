@@ -1,0 +1,11 @@
+Use case: logo-brand
+Asset type: final square Telegram bot avatar for the Ukrainian PassportMonitor project (@uapass_bot).
+Primary request: create one polished, distinctive icon for a bot that monitors available appointment slots at Ukrainian passport/document offices and notifies users when slots become available.
+Subject: a bold stylized passport booklet with a simple globe symbol on its cover, paired with one clear golden notification bell overlapping the lower-right corner. The passport and bell should form a unified, balanced brand mark. Two short restrained ringing strokes may communicate an active notification.
+Style/medium: premium minimal vector-like raster illustration, crisp geometric shapes, softly rounded edges, subtle depth, exceptionally legible at 48 pixels.
+Scene/backdrop: full-bleed rich royal-blue to deep navy subtle gradient, opaque background.
+Color palette: Ukrainian-inspired blue and warm yellow, off-white passport silhouette, simple blue globe on the passport cover, golden yellow notification bell.
+Composition/framing: square 1:1, one large centered emblem filling about 70 percent of the canvas; all important shapes stay inside a circular crop with generous safe margins. Passport mostly upright with a very slight tilt. Clean negative space.
+Lighting/mood: calm, helpful, reliable, modern.
+Text: none.
+Constraints: one finished icon only, no mockup, no contact sheet, no frames, no watermarks, no letters or numbers, no official government emblems or seals, no robot face, no extra calendar or tiny decorative objects. Simplify the globe into a few thick clean curves.

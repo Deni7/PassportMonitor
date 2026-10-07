@@ -35,9 +35,13 @@ class Status(StrEnum):
 
 
 class ProviderError(Exception):
-    def __init__(self, status: Status, detail: str):
+    def __init__(self, status: Status, detail: str, **diagnostics):
         super().__init__(detail)
         self.status = status
+        self.diagnostics = diagnostics
+
+    def as_dict(self):
+        return {"status": str(self.status), "detail": str(self), **self.diagnostics}
 
 
 def normalize(value: str) -> str:

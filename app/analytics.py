@@ -19,6 +19,16 @@ delivery_context = ContextVar("delivery_context", default=None)
 incoming_context = ContextVar("incoming_context", default=None)
 
 
+async def answer_with_diagnostics(message, text, details):
+    token = delivery_context.set(
+        {**(delivery_context.get() or {}), "provider_error_details": details}
+    )
+    try:
+        return await message.answer(text)
+    finally:
+        delivery_context.reset(token)
+
+
 async def record_event(repo, **values):
     try:
         async with repo.sessions.begin() as session:

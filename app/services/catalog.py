@@ -18,11 +18,14 @@ class Catalog:
             item = self.cache.get(key)
             if item and item[0] > time.monotonic():
                 if isinstance(item[1], ProviderError):
-                    raise item[1]
+                    error = item[1]
+                    error.diagnostics["cached"] = True
+                    raise error
                 return item[1]
             try:
                 value = await action()
             except ProviderError as exc:
+                exc.diagnostics.update(provider=key[0], operation=key[1])
                 self.cache[key] = (time.monotonic() + 60, exc)
                 raise
             self.cache[key] = (time.monotonic() + self.ttl, value)
@@ -88,6 +91,9 @@ class Catalog:
                 doc_locations = await self.locations("document")
             except ProviderError as exc:
                 region_choice["provider_errors"] = [f"document: {exc.status}"]
+                region_choice["provider_error_details"] = [
+                    {"provider": "document", "operation": "locations", **exc.as_dict()}
+                ]
             for location in doc_locations:
                 expected = DOCUMENT_REGIONS.get(location.city)
                 if expected is None:
@@ -125,12 +131,21 @@ class Catalog:
     async def available_services(self, choice):
         result = {}
         errors = []
+        details = []
         for provider, specs in choice["locations"].items():
             for spec in specs:
                 try:
                     departments = await self.departments(provider, Location(**spec))
                 except ProviderError as exc:
                     errors.append((provider, exc))
+                    details.append(
+                        {
+                            "provider": provider,
+                            "operation": "departments",
+                            "location_id": spec["id"],
+                            **exc.as_dict(),
+                        }
+                    )
                     continue
                 for dep in departments:
                     try:
@@ -139,7 +154,16 @@ class Catalog:
                                 result[canonical] = TITLES.get(canonical, service.name)
                     except ProviderError as exc:
                         errors.append((provider, exc))
+                        details.append(
+                            {
+                                "provider": provider,
+                                "operation": "services",
+                                "department_id": dep.id,
+                                **exc.as_dict(),
+                            }
+                        )
         choice["provider_errors"] = sorted({f"{p}: {e.status}" for p, e in errors})
+        choice["provider_error_details"] = details
         if not result and errors:
             raise errors[0][1]
         return result

@@ -51,10 +51,18 @@ async def test_server_protection_opens_circuit_without_immediate_retries(code):
         SimpleNamespace(wait=AsyncMock()),
         httpx.AsyncClient(transport=httpx.MockTransport(handle)),
     )
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError) as first:
+        await transport.get_json("https://cherga.dmsu.gov.ua/test?token=private")
+    assert first.value.diagnostics == {
+        "http_status": code,
+        "request_sent": True,
+        "url": "https://cherga.dmsu.gov.ua/test",
+        "retry_after_seconds": 900,
+    }
+    with pytest.raises(ProviderError) as paused:
         await transport.get_json("https://cherga.dmsu.gov.ua/test")
-    with pytest.raises(ProviderError):
-        await transport.get_json("https://cherga.dmsu.gov.ua/test")
+    assert paused.value.diagnostics["request_sent"] is False
+    assert paused.value.diagnostics["cause"] == first.value.as_dict()
     assert len(calls) == 1
     import time
 

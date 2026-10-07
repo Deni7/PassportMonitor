@@ -144,6 +144,7 @@ class DocumentProvider(QueueProvider):
         self.pages = {}
         self.lock = asyncio.Lock()
         self.blocked_until = 0.0
+        self.last_error = None
         self.failures = 0
         self.centers = None
         self.centers_fetched = 0.0
@@ -210,9 +211,9 @@ class DocumentProvider(QueueProvider):
             response = await page.goto(url, wait_until="domcontentloaded")
             if response and response.status in (403, 429, 503):
                 self._respect_retry_after(response)
-            await self._challenge(page)
+            await self._response_challenge(page, response)
             if response and response.status in (403, 429, 503):
-                raise ProviderError(Status.RATE_LIMIT, f"Browser HTTP {response.status}")
+                raise self._http_error(response, f"Browser HTTP {response.status}")
         await self._challenge(page)
         return page
 
@@ -223,6 +224,27 @@ class DocumentProvider(QueueProvider):
         self.blocked_until = max(
             self.blocked_until, clock.monotonic() + max(delay, self.settings.circuit_cooldown)
         )
+
+    def _http_error(self, response, detail):
+        return ProviderError(
+            Status.RATE_LIMIT,
+            detail,
+            http_status=response.status,
+            request_sent=True,
+            url=response.url.split("?", 1)[0].split("#", 1)[0],
+            retry_after_seconds=retry_after_seconds(
+                response.headers.get("retry-after", "0"), self.settings.circuit_cooldown
+            ),
+        )
+
+    async def _response_challenge(self, page, response):
+        try:
+            await self._challenge(page)
+        except ProviderError as exc:
+            if response:
+                diagnostics = self._http_error(response, str(exc)).diagnostics
+                raise ProviderError(exc.status, str(exc), **diagnostics) from exc
+            raise
 
     async def _operation(self, action):
         for attempt in range(self.settings.max_retries + 1):
@@ -240,11 +262,18 @@ class DocumentProvider(QueueProvider):
     async def _attempt_operation(self, action):
         async with self.lock:
             if clock.monotonic() < self.blocked_until:
-                raise ProviderError(Status.RATE_LIMIT, "Browser circuit open")
+                raise ProviderError(
+                    Status.RATE_LIMIT,
+                    "Browser circuit open",
+                    request_sent=False,
+                    cause=self.last_error.as_dict() if self.last_error else None,
+                    retry_in_seconds=max(0, self.blocked_until - clock.monotonic()),
+                )
             started = clock.monotonic()
             try:
                 result = await action()
                 self.failures = 0
+                self.last_error = None
                 return result
             except BrowserTimeout as exc:
                 error = ProviderError(Status.TIMEOUT, "Browser availability request timed out")
@@ -257,6 +286,7 @@ class DocumentProvider(QueueProvider):
             finally:
                 DURATION.labels(self.name).observe(clock.monotonic() - started)
             ERRORS.labels(self.name, error.status).inc()
+            self.last_error = error
             self.failures += 1
             if self.failures >= self.settings.circuit_threshold or error.status in (
                 Status.CLOUDFLARE,
@@ -337,8 +367,8 @@ class DocumentProvider(QueueProvider):
         response = await pending.value
         if response.status in (403, 429, 503):
             self._respect_retry_after(response)
-            await self._challenge(page)
-            raise ProviderError(Status.RATE_LIMIT, f"Browser availability HTTP {response.status}")
+            await self._response_challenge(page, response)
+            raise self._http_error(response, f"Browser availability HTTP {response.status}")
         if response.status != 200:
             raise ProviderError(
                 Status.PROVIDER_ERROR, f"Browser availability HTTP {response.status}"

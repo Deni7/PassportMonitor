@@ -69,6 +69,15 @@ async def test_document_outage_keeps_both_provider_subscription_scope(repo):
     assert set(choice["locations"]) == {"dmsu", "document"}
     assert "passport" in await catalog.available_services(choice)
     assert choice["provider_errors"] == ["document: CLOUDFLARE"]
+    assert choice["provider_error_details"] == [
+        {
+            "provider": "document",
+            "operation": "departments",
+            "location_id": choice["locations"]["document"][0]["id"],
+            "status": "CLOUDFLARE",
+            "detail": "challenge",
+        }
+    ]
     assert service_matches(
         "document", Service("4", "Закордонний паспорт та (або) ID-картка"), "passport"
     )

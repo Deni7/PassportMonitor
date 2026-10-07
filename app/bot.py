@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.analytics import incoming_context
+from app.analytics import answer_with_diagnostics, incoming_context
 from app.domain import ProviderError, utcnow
 from app.services.display import PROVIDER_TITLES, readable_errors, status_title
 
@@ -122,10 +122,12 @@ def build_router(repo, catalog, scheduler):
             await callback.message.answer("Завантажую всі підрозділи області…")
             values = await catalog.city_choices(chosen)
             if chosen.get("provider_errors"):
-                await callback.message.answer(
+                await answer_with_diagnostics(
+                    callback.message,
                     "⚠️ "
                     + readable_errors(chosen["provider_errors"])
-                    + ". Доступна установа продовжить моніторинг; недоступна перевірятиметься після відновлення."
+                    + ". Доступна установа продовжить моніторинг; недоступна перевірятиметься після відновлення.",
+                    chosen.get("provider_error_details", []),
                 )
             await state.set_state(Wizard.city)
             await choices(callback.message, state, values, "city")
@@ -135,10 +137,12 @@ def build_router(repo, catalog, scheduler):
         )
         services = await catalog.available_services(chosen)
         if chosen.get("provider_errors"):
-            await callback.message.answer(
+            await answer_with_diagnostics(
+                callback.message,
                 "⚠️ Каталог частково недоступний: "
                 + readable_errors(chosen["provider_errors"])
-                + ". Підписка збереже обрані установи, а їх помилки будуть показані окремо."
+                + ". Підписка збереже обрані установи, а їх помилки будуть показані окремо.",
+                chosen.get("provider_error_details", []),
             )
         if not services:
             await callback.message.answer(
@@ -258,7 +262,10 @@ def build_router(repo, catalog, scheduler):
             update.callback_query.message if update.callback_query else None
         )
         if message:
-            await message.answer(text)
+            if isinstance(event.exception, ProviderError):
+                await answer_with_diagnostics(message, text, [event.exception.as_dict()])
+            else:
+                await message.answer(text)
         return True
 
     return router

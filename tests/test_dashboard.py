@@ -14,7 +14,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from pydantic import SecretStr
 from sqlalchemy import select
 
-from app.analytics import IncomingAudit, OutgoingAudit, delivery_context
+from app.analytics import IncomingAudit, OutgoingAudit, answer_with_diagnostics, delivery_context
 from app.config import Settings
 from app.dashboard import add_dashboard
 from app.domain import Department, ProviderError, Service, Slot, Status, utcnow
@@ -281,3 +281,40 @@ async def test_outgoing_network_uncertainty_and_batch_link(repo):
         assert event.status == "UNCERTAIN"
         assert event.data["notification_ids"] == [1, 2]
         assert event.finished_at
+
+
+async def test_catalog_warning_persists_diagnostics_without_leaking_context(repo):
+    audit = OutgoingAudit(repo)
+    details = [
+        {
+            "provider": "document",
+            "status": "RATE_LIMIT",
+            "detail": "Browser circuit open",
+            "request_sent": False,
+            "cause": {
+                "status": "RATE_LIMIT",
+                "detail": "Browser HTTP 429",
+                "http_status": 429,
+                "retry_after_seconds": 900,
+            },
+        }
+    ]
+
+    async def answer(text):
+        return await audit(
+            AsyncMock(return_value=SimpleNamespace(message_id=42)),
+            None,
+            SendMessage(chat_id=UID, text=text),
+        )
+
+    await answer_with_diagnostics(SimpleNamespace(answer=answer), "Каталог недоступний", details)
+    assert delivery_context.get() is None
+    await audit(
+        AsyncMock(return_value=SimpleNamespace(message_id=43)),
+        None,
+        SendMessage(chat_id=UID, text="Наступне повідомлення"),
+    )
+    async with repo.sessions() as session:
+        events = list((await session.scalars(select(BotEvent).order_by(BotEvent.id))).all())
+        assert events[0].data["provider_error_details"] == details
+        assert "provider_error_details" not in events[1].data

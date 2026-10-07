@@ -141,6 +141,33 @@ async def verify():
                     )
                 )
             async with repo.sessions.begin() as session:
+                session.add(
+                    BotEvent(
+                        user_id=5555555555,
+                        kind="outgoing",
+                        status="SENT",
+                        text="Каталог частково недоступний",
+                        created_at=now,
+                        data={
+                            "provider_error_details": [
+                                {
+                                    "provider": "document",
+                                    "operation": "locations",
+                                    "status": "RATE_LIMIT",
+                                    "detail": "Browser circuit open",
+                                    "request_sent": False,
+                                    "cached": True,
+                                    "cause": {
+                                        "status": "RATE_LIMIT",
+                                        "detail": "Browser HTTP 429",
+                                        "http_status": 429,
+                                        "retry_after_seconds": 900,
+                                    },
+                                }
+                            ]
+                        },
+                    )
+                )
                 session.add(PollRunSubscription(run_id=1, subscription_id=1, user_id=5555555555))
                 session.add(
                     ProviderRequest(
@@ -209,6 +236,17 @@ async def verify():
                         if view != "notifications":
                             await page.get_by_role("button", name="Деталі ↗").first.click()
                             assert await page.locator("#detail").is_visible()
+                            if view == "outgoing":
+                                await expect(page.locator("#detail-content")).to_contain_text(
+                                    "Причина помилки сервісу"
+                                )
+                                await expect(page.locator("#detail-content")).to_contain_text(
+                                    "HTTP 429 — сервіс відповів «забагато запитів»"
+                                )
+                                await expect(page.locator("#detail-content")).to_contain_text(
+                                    "Новий HTTP-запит не надсилався"
+                                )
+                                await page.screenshot(path=str(output / "provider-error.png"))
                             await page.locator("#close-detail").click()
                     await page.locator('nav button[data-view="users"]').click()
                     await expect(page.locator("#updated")).to_have_text(re.compile("^Оновлено"))

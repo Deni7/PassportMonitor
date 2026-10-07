@@ -51,15 +51,25 @@ class Transport:
         )
         self.failures = 0
         self.blocked_until = 0.0
+        self.last_error = None
+
+    def circuit_error(self):
+        return ProviderError(
+            Status.RATE_LIMIT,
+            "Circuit open; requests suspended",
+            request_sent=False,
+            cause=self.last_error.as_dict() if self.last_error else None,
+            retry_in_seconds=max(0, self.blocked_until - time.monotonic()),
+        )
 
     async def get_json(self, url, params=None):
         if time.monotonic() < self.blocked_until:
-            raise ProviderError(Status.RATE_LIMIT, "Circuit open; requests suspended")
+            raise self.circuit_error()
         for attempt in range(self.settings.max_retries + 1):
             await self.gate.wait(self.provider)
             # Another in-flight request may have opened the circuit while we waited.
             if time.monotonic() < self.blocked_until:
-                raise ProviderError(Status.RATE_LIMIT, "Circuit open; requests suspended")
+                raise self.circuit_error()
             REQUESTS.labels(self.provider).inc()
             started = time.monotonic()
             retry_after = 0
@@ -82,7 +92,14 @@ class Transport:
                     self.blocked_until = time.monotonic() + max(
                         retry_after, self.settings.circuit_cooldown
                     )
-                    raise ProviderError(status, f"HTTP {response.status_code}; requests suspended")
+                    raise ProviderError(
+                        status,
+                        f"HTTP {response.status_code}; requests suspended",
+                        http_status=response.status_code,
+                        request_sent=True,
+                        url=str(response.url.copy_with(query=None, fragment=None)),
+                        retry_after_seconds=retry_after,
+                    )
                 if response.status_code >= 400 or response.is_redirect:
                     raise ProviderError(Status.PROVIDER_ERROR, f"HTTP {response.status_code}")
                 try:
@@ -92,6 +109,7 @@ class Transport:
                         Status.PARSING_ERROR, "Provider contract changed: not JSON"
                     ) from exc
                 self.failures = 0
+                self.last_error = None
                 return data
             except httpx.TimeoutException:
                 error = ProviderError(Status.TIMEOUT, "Provider request timed out")
@@ -102,6 +120,7 @@ class Transport:
             finally:
                 DURATION.labels(self.provider).observe(time.monotonic() - started)
             ERRORS.labels(self.provider, error.status).inc()
+            self.last_error = error
             self.failures += 1
             if self.failures >= self.settings.circuit_threshold:
                 self.blocked_until = max(

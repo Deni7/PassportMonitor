@@ -195,3 +195,32 @@ async def test_document_keeps_connected_browser_after_operation_error(browser_dr
         runtime.stop.assert_not_awaited()
     finally:
         await provider.close()
+
+
+@pytest.mark.parametrize("code", [403, 429, 503])
+async def test_document_http_error_and_pause_preserve_actual_response(code):
+    provider = DocumentProvider(config(), None)
+    response = SimpleNamespace(
+        status=code, url="https://pasport.org.ua/?secret=value", headers={"retry-after": "900"}
+    )
+    action = AsyncMock(side_effect=provider._http_error(response, f"Browser HTTP {code}"))
+    with pytest.raises(ProviderError) as first:
+        await provider._operation(action)
+    with pytest.raises(ProviderError) as paused:
+        await provider._operation(action)
+    assert first.value.diagnostics["http_status"] == code
+    assert first.value.diagnostics["url"] == "https://pasport.org.ua/"
+    assert first.value.diagnostics["retry_after_seconds"] == 900
+    assert paused.value.diagnostics["request_sent"] is False
+    assert paused.value.diagnostics["cause"] == first.value.as_dict()
+    assert action.await_count == 1
+
+
+async def test_document_challenge_preserves_response_code():
+    provider = DocumentProvider(config(), None)
+    provider._challenge = AsyncMock(side_effect=ProviderError(Status.CLOUDFLARE, "challenge"))
+    response = SimpleNamespace(status=403, url="https://pasport.org.ua/", headers={})
+    with pytest.raises(ProviderError) as error:
+        await provider._response_challenge(None, response)
+    assert error.value.status == Status.CLOUDFLARE
+    assert error.value.diagnostics["http_status"] == 403
